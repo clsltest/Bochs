@@ -225,6 +225,159 @@ struct ACPIHPET {
 #define ACPI_IOAPIC_ADDRESS  0xFEC00000
 #define ACPI_LAPIC_ADDRESS   0xFEE00000
 
+// ==================================================================
+// SMBIOS Table Structures
+// ==================================================================
+
+// SMBIOS Entry Point Structure (must be 16-byte aligned)
+struct SMBIOSEntryPoint {
+    Bit8u  anchor_string[4];           // "_SM_"
+    Bit8u  checksum;                   // Entry point checksum
+    Bit8u  length;                     // Entry point length (0x1F)
+    Bit8u  smbios_major_version;       // SMBIOS major version (2)
+    Bit8u  smbios_minor_version;       // SMBIOS minor version (4)
+    Bit16u max_structure_size;         // Maximum size of SMBIOS structure
+    Bit8u  entry_point_revision;       // Entry point revision (0)
+    Bit8u  formatted_area[5];          // Formatted area
+    Bit8u  intermediate_anchor[5];     // "_DMI_"
+    Bit8u  intermediate_checksum;      // Intermediate checksum
+    Bit16u structure_table_length;     // Structure table length
+    Bit32u structure_table_address;    // Structure table address
+    Bit16u number_of_structures;       // Number of SMBIOS structures
+    Bit8u  smbios_bcd_revision;        // SMBIOS BCD revision
+} GCC_ATTRIBUTE((packed));
+
+// Common header for all SMBIOS structures
+struct SMBIOSStructureHeader {
+    Bit8u  type;      // Structure type
+    Bit8u  length;    // Structure length (excluding strings)
+    Bit16u handle;    // Structure handle
+} GCC_ATTRIBUTE((packed));
+
+// Type 0: BIOS Information
+struct SMBIOSType0 {
+    SMBIOSStructureHeader header;
+    Bit8u  vendor_str;                        // String index
+    Bit8u  bios_version_str;                  // String index
+    Bit16u bios_starting_address_segment;     // Usually 0xE000
+    Bit8u  bios_release_date_str;             // String index
+    Bit8u  bios_rom_size;                     // (size-1) / 64KB
+    Bit64u bios_characteristics;              // Capabilities bitmap
+    Bit8u  bios_characteristics_ext_bytes[2]; // Extended capabilities
+    Bit8u  system_bios_major_release;
+    Bit8u  system_bios_minor_release;
+    Bit8u  embedded_controller_major_release;
+    Bit8u  embedded_controller_minor_release;
+} GCC_ATTRIBUTE((packed));
+
+// Type 1: System Information
+struct SMBIOSType1 {
+    SMBIOSStructureHeader header;
+    Bit8u  manufacturer_str;       // String index
+    Bit8u  product_name_str;       // String index
+    Bit8u  version_str;            // String index
+    Bit8u  serial_number_str;      // String index
+    Bit8u  uuid[16];               // UUID (same as fw_cfg UUID)
+    Bit8u  wake_up_type;           // Wake-up type
+    Bit8u  sku_number_str;         // String index
+    Bit8u  family_str;             // String index
+} GCC_ATTRIBUTE((packed));
+
+// Type 3: System Enclosure
+struct SMBIOSType3 {
+    SMBIOSStructureHeader header;
+    Bit8u  manufacturer_str;       // String index
+    Bit8u  type;                   // Enclosure type (3 = Desktop)
+    Bit8u  version_str;            // String index
+    Bit8u  serial_number_str;      // String index
+    Bit8u  asset_tag_number_str;   // String index
+    Bit8u  boot_up_state;          // State when booting
+    Bit8u  power_supply_state;     // Power supply state
+    Bit8u  thermal_state;          // Thermal state
+    Bit8u  security_status;        // Security status
+    Bit32u oem_defined;            // OEM-specific
+    Bit8u  height;                 // Height in U units
+    Bit8u  number_of_power_cords;  // Number of power cords
+    Bit8u  contained_element_count;// Number of contained elements
+} GCC_ATTRIBUTE((packed));
+
+// Type 4: Processor Information
+struct SMBIOSType4 {
+    SMBIOSStructureHeader header;
+    Bit8u  socket_designation_str;   // String index
+    Bit8u  processor_type;           // Processor type (3 = Central Processor)
+    Bit8u  processor_family;         // Processor family
+    Bit8u  processor_manufacturer_str; // String index
+    Bit32u processor_id[2];          // Processor ID from CPUID
+    Bit8u  processor_version_str;    // String index
+    Bit8u  voltage;                  // Voltage
+    Bit16u external_clock;           // External clock in MHz
+    Bit16u max_speed;                // Max speed in MHz
+    Bit16u current_speed;            // Current speed in MHz
+    Bit8u  status;                   // Status (enabled/disabled)
+    Bit8u  processor_upgrade;        // Processor upgrade
+} GCC_ATTRIBUTE((packed));
+
+// Type 16: Physical Memory Array
+struct SMBIOSType16 {
+    SMBIOSStructureHeader header;
+    Bit8u  location;                         // Location (3 = System board)
+    Bit8u  use;                              // Use (3 = System memory)
+    Bit8u  error_correction;                 // Error correction (3 = None)
+    Bit32u maximum_capacity;                 // Maximum capacity in KB
+    Bit16u memory_error_information_handle;  // 0xFFFE = Not provided
+    Bit16u number_of_memory_devices;         // Number of devices
+} GCC_ATTRIBUTE((packed));
+
+// Type 17: Memory Device
+struct SMBIOSType17 {
+    SMBIOSStructureHeader header;
+    Bit16u physical_memory_array_handle;    // Handle of type 16
+    Bit16u memory_error_information_handle; // 0xFFFE = Not provided
+    Bit16u total_width;                     // Total width in bits
+    Bit16u data_width;                      // Data width in bits
+    Bit16u size;                            // Size in MB
+    Bit8u  form_factor;                     // Form factor (9 = DIMM)
+    Bit8u  device_set;                      // Device set (0 = None)
+    Bit8u  device_locator_str;              // String index
+    Bit8u  bank_locator_str;                // String index
+    Bit8u  memory_type;                     // Memory type (7 = SDRAM)
+    Bit16u type_detail;                     // Type detail
+} GCC_ATTRIBUTE((packed));
+
+// Type 19: Memory Array Mapped Address
+struct SMBIOSType19 {
+    SMBIOSStructureHeader header;
+    Bit32u starting_address;               // Starting address in KB
+    Bit32u ending_address;                 // Ending address in KB
+    Bit16u memory_array_handle;            // Handle of type 16
+    Bit8u  partition_width;                // Number of devices
+} GCC_ATTRIBUTE((packed));
+
+// Type 20: Memory Device Mapped Address
+struct SMBIOSType20 {
+    SMBIOSStructureHeader header;
+    Bit32u starting_address;                       // Starting address in KB
+    Bit32u ending_address;                         // Ending address in KB
+    Bit16u memory_device_handle;                   // Handle of type 17
+    Bit16u memory_array_mapped_address_handle;     // Handle of type 19
+    Bit8u  partition_row_position;                 // Position in partition
+    Bit8u  interleave_position;                    // Interleave position
+    Bit8u  interleaved_data_depth;                 // Data depth
+} GCC_ATTRIBUTE((packed));
+
+// Type 32: System Boot Information
+struct SMBIOSType32 {
+    SMBIOSStructureHeader header;
+    Bit8u  reserved[6];            // Reserved
+    Bit8u  boot_status;            // Boot status (0 = No errors)
+} GCC_ATTRIBUTE((packed));
+
+// Type 127: End-of-Table
+struct SMBIOSType127 {
+    SMBIOSStructureHeader header;
+} GCC_ATTRIBUTE((packed));
+
 // File directory entry (64 bytes)
 struct FWCfgFile {
     Bit32u size;          // File size (big-endian)
@@ -297,6 +450,8 @@ private:
     void generate_acpi_tables();
     Bit8u acpi_checksum(void *data, Bit32u length);
     void acpi_build_table_header(ACPITableHeader *h, const char *sig, Bit32u len, Bit8u rev);
+    void generate_smbios_tables();
+    Bit8u smbios_checksum(void *data, Bit32u length);
 };
 
 #endif // BX_SUPPORT_PCI

@@ -133,6 +133,9 @@ void bx_fwcfg_c::init(void)
   // Generate ACPI tables
   generate_acpi_tables();
 
+  // Generate SMBIOS tables
+  generate_smbios_tables();
+
   BX_INFO(("fw_cfg initialized: RAM=%llu MB, CPUs=%u/%u",
            (unsigned long long)(s.ram_size / (1024*1024)), s.nb_cpus, s.max_cpus));
 }
@@ -584,6 +587,331 @@ void bx_fwcfg_c::generate_acpi_tables()
   BX_INFO(("  FACS @ 0x%x (%u bytes)", facs_offset, facs_size));
   BX_INFO(("  DSDT @ 0x%x (%u bytes)", dsdt_offset, dsdt_size));
   BX_INFO(("  MADT @ 0x%x (%u bytes, %u CPUs)", madt_offset, madt_size, s.nb_cpus));
+}
+
+// ==================================================================
+// SMBIOS Table Generation
+// ==================================================================
+
+// Calculate SMBIOS checksum
+Bit8u bx_fwcfg_c::smbios_checksum(void *data, Bit32u length)
+{
+  Bit8u *bytes = (Bit8u *)data;
+  Bit32u sum = 0;
+  for (Bit32u i = 0; i < length; i++) {
+    sum += bytes[i];
+  }
+  return (Bit8u)((-sum) & 0xFF);
+}
+
+// Helper to add string to SMBIOS structure
+static Bit8u* smbios_add_string(Bit8u *p, const char *str)
+{
+  strcpy((char *)p, str);
+  return p + strlen(str) + 1;
+}
+
+// Helper to terminate SMBIOS structure strings
+static Bit8u* smbios_terminate_strings(Bit8u *p)
+{
+  // SMBIOS structures end with double-null (empty string after last string)
+  *p++ = 0;
+  return p;
+}
+
+// Generate SMBIOS tables and expose via fw_cfg
+void bx_fwcfg_c::generate_smbios_tables()
+{
+  BX_INFO(("Generating SMBIOS tables for UEFI/OVMF"));
+
+  // Calculate memory size in MB
+  Bit32u memsize_mb = (Bit32u)(s.ram_size / (1024 * 1024));
+
+  // Calculate number of memory devices (each covers up to 16GB)
+  Bit32u nr_mem_devs = (memsize_mb + 0x3FFF) >> 14;
+  if (nr_mem_devs == 0) nr_mem_devs = 1;
+
+  // Estimate buffer size: entry point + all structures + strings
+  // Generous estimate to avoid overflow
+  Bit32u est_size = sizeof(SMBIOSEntryPoint) + 2048;
+  Bit8u *tables = new Bit8u[est_size];
+  memset(tables, 0, est_size);
+
+  // Reserve space for entry point (will fill in later)
+  Bit8u *p = tables + sizeof(SMBIOSEntryPoint);
+  Bit8u *structure_start = p;
+
+  Bit16u nr_structs = 0;
+  Bit16u max_struct_size = 0;
+
+  // Helper macro to track structure stats
+  #define ADD_SMBIOS_STRUCT(start, end) do { \
+    Bit16u struct_size = (end) - (start); \
+    if (struct_size > max_struct_size) max_struct_size = struct_size; \
+    nr_structs++; \
+    p = (end); \
+  } while(0)
+
+  // Type 0: BIOS Information
+  {
+    Bit8u *start = p;
+    SMBIOSType0 *t = (SMBIOSType0 *)p;
+    t->header.type = 0;
+    t->header.length = sizeof(SMBIOSType0);
+    t->header.handle = 0x0000;
+    t->vendor_str = 1;
+    t->bios_version_str = 2;
+    t->bios_starting_address_segment = 0xE000;
+    t->bios_release_date_str = 3;
+    t->bios_rom_size = 0; // (size-1)/64K, 0 for 64K ROM
+    t->bios_characteristics = 0x08; // BIOS characteristics not fully populated
+    t->bios_characteristics_ext_bytes[0] = 0;
+    t->bios_characteristics_ext_bytes[1] = 0;
+    t->system_bios_major_release = 1;
+    t->system_bios_minor_release = 0;
+    t->embedded_controller_major_release = 0xFF;
+    t->embedded_controller_minor_release = 0xFF;
+
+    p += sizeof(SMBIOSType0);
+    p = smbios_add_string(p, "Bochs");
+    p = smbios_add_string(p, "Bochs");
+    p = smbios_add_string(p, "11/17/2025");
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  // Type 1: System Information
+  {
+    Bit8u *start = p;
+    SMBIOSType1 *t = (SMBIOSType1 *)p;
+    t->header.type = 1;
+    t->header.length = sizeof(SMBIOSType1);
+    t->header.handle = 0x0100;
+    t->manufacturer_str = 1;
+    t->product_name_str = 2;
+    t->version_str = 3;
+    t->serial_number_str = 4;
+    memcpy(t->uuid, s.uuid, 16); // Use same UUID as fw_cfg
+    t->wake_up_type = 6; // Power switch
+    t->sku_number_str = 0;
+    t->family_str = 0;
+
+    p += sizeof(SMBIOSType1);
+    p = smbios_add_string(p, "Bochs");
+    p = smbios_add_string(p, "Standard PC (Q35 + ICH9, 2009)");
+    p = smbios_add_string(p, "pc-q35-2.4");
+    p = smbios_add_string(p, "Not Specified");
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  // Type 3: System Enclosure
+  {
+    Bit8u *start = p;
+    SMBIOSType3 *t = (SMBIOSType3 *)p;
+    t->header.type = 3;
+    t->header.length = sizeof(SMBIOSType3);
+    t->header.handle = 0x0300;
+    t->manufacturer_str = 1;
+    t->type = 1; // Other
+    t->version_str = 0;
+    t->serial_number_str = 0;
+    t->asset_tag_number_str = 0;
+    t->boot_up_state = 3; // Safe
+    t->power_supply_state = 3; // Safe
+    t->thermal_state = 3; // Safe
+    t->security_status = 0; // Unknown
+    t->oem_defined = 0;
+    t->height = 0;
+    t->number_of_power_cords = 0;
+    t->contained_element_count = 0;
+
+    p += sizeof(SMBIOSType3);
+    p = smbios_add_string(p, "Bochs");
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  // Type 4: Processor Information (one per CPU)
+  for (Bit16u cpu_num = 0; cpu_num < s.nb_cpus; cpu_num++) {
+    Bit8u *start = p;
+    SMBIOSType4 *t = (SMBIOSType4 *)p;
+    t->header.type = 4;
+    t->header.length = sizeof(SMBIOSType4);
+    t->header.handle = 0x0400 + cpu_num;
+    t->socket_designation_str = 1;
+    t->processor_type = 3; // Central Processor
+    t->processor_family = 1; // Other
+    t->processor_manufacturer_str = 2;
+    t->processor_id[0] = 0;
+    t->processor_id[1] = 0;
+    t->processor_version_str = 0;
+    t->voltage = 0;
+    t->external_clock = 0;
+    t->max_speed = 2000; // 2000 MHz
+    t->current_speed = 2000;
+    t->status = 0x41; // CPU enabled, populated
+    t->processor_upgrade = 1; // Other
+
+    p += sizeof(SMBIOSType4);
+    p = smbios_add_string(p, "CPU 0");
+    p = smbios_add_string(p, "Bochs");
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  // Type 16: Physical Memory Array
+  {
+    Bit8u *start = p;
+    SMBIOSType16 *t = (SMBIOSType16 *)p;
+    t->header.type = 16;
+    t->header.length = sizeof(SMBIOSType16);
+    t->header.handle = 0x1000;
+    t->location = 3; // System board or motherboard
+    t->use = 3; // System memory
+    t->error_correction = 3; // None
+    t->maximum_capacity = memsize_mb * 1024; // In KB
+    t->memory_error_information_handle = 0xFFFE; // Not provided
+    t->number_of_memory_devices = nr_mem_devs;
+
+    p += sizeof(SMBIOSType16);
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  // Type 17, 19, 20: Memory Device info (one set per device)
+  for (Bit32u i = 0; i < nr_mem_devs; i++) {
+    Bit32u dev_memsize_mb = ((i == (nr_mem_devs - 1))
+                             ? (((memsize_mb - 1) & 0x3FFF) + 1) : 0x4000);
+
+    // Type 17: Memory Device
+    {
+      Bit8u *start = p;
+      SMBIOSType17 *t = (SMBIOSType17 *)p;
+      t->header.type = 17;
+      t->header.length = sizeof(SMBIOSType17);
+      t->header.handle = 0x1100 + i;
+      t->physical_memory_array_handle = 0x1000;
+      t->memory_error_information_handle = 0xFFFE;
+      t->total_width = 64;
+      t->data_width = 64;
+      t->size = dev_memsize_mb; // Size in MB
+      t->form_factor = 9; // DIMM
+      t->device_set = 0;
+      t->device_locator_str = 1;
+      t->bank_locator_str = 0;
+      t->memory_type = 7; // SDRAM
+      t->type_detail = 0;
+
+      p += sizeof(SMBIOSType17);
+      p = smbios_add_string(p, "DIMM 0");
+      p = smbios_terminate_strings(p);
+      ADD_SMBIOS_STRUCT(start, p);
+    }
+
+    // Type 19: Memory Array Mapped Address
+    {
+      Bit8u *start = p;
+      SMBIOSType19 *t = (SMBIOSType19 *)p;
+      t->header.type = 19;
+      t->header.length = sizeof(SMBIOSType19);
+      t->header.handle = 0x1300 + i;
+      t->starting_address = i << 24; // In KB
+      t->ending_address = t->starting_address + (dev_memsize_mb << 10) - 1;
+      t->memory_array_handle = 0x1000;
+      t->partition_width = 1;
+
+      p += sizeof(SMBIOSType19);
+      p = smbios_terminate_strings(p);
+      ADD_SMBIOS_STRUCT(start, p);
+    }
+
+    // Type 20: Memory Device Mapped Address
+    {
+      Bit8u *start = p;
+      SMBIOSType20 *t = (SMBIOSType20 *)p;
+      t->header.type = 20;
+      t->header.length = sizeof(SMBIOSType20);
+      t->header.handle = 0x1400 + i;
+      t->starting_address = i << 24; // In KB
+      t->ending_address = t->starting_address + (dev_memsize_mb << 10) - 1;
+      t->memory_device_handle = 0x1100 + i;
+      t->memory_array_mapped_address_handle = 0x1300 + i;
+      t->partition_row_position = 1;
+      t->interleave_position = 0;
+      t->interleaved_data_depth = 0;
+
+      p += sizeof(SMBIOSType20);
+      p = smbios_terminate_strings(p);
+      ADD_SMBIOS_STRUCT(start, p);
+    }
+  }
+
+  // Type 32: System Boot Information
+  {
+    Bit8u *start = p;
+    SMBIOSType32 *t = (SMBIOSType32 *)p;
+    t->header.type = 32;
+    t->header.length = sizeof(SMBIOSType32);
+    t->header.handle = 0x2000;
+    memset(t->reserved, 0, 6);
+    t->boot_status = 0; // No errors detected
+
+    p += sizeof(SMBIOSType32);
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  // Type 127: End-of-Table
+  {
+    Bit8u *start = p;
+    SMBIOSType127 *t = (SMBIOSType127 *)p;
+    t->header.type = 127;
+    t->header.length = sizeof(SMBIOSType127);
+    t->header.handle = 0x7F00;
+
+    p += sizeof(SMBIOSType127);
+    p = smbios_terminate_strings(p);
+    ADD_SMBIOS_STRUCT(start, p);
+  }
+
+  #undef ADD_SMBIOS_STRUCT
+
+  // Calculate structure table size
+  Bit16u structure_table_length = p - structure_start;
+
+  // Build SMBIOS Entry Point
+  SMBIOSEntryPoint *ep = (SMBIOSEntryPoint *)tables;
+  memcpy(ep->anchor_string, "_SM_", 4);
+  ep->checksum = 0; // Will calculate later
+  ep->length = sizeof(SMBIOSEntryPoint);
+  ep->smbios_major_version = 2;
+  ep->smbios_minor_version = 4;
+  ep->max_structure_size = max_struct_size;
+  ep->entry_point_revision = 0;
+  memset(ep->formatted_area, 0, 5);
+  memcpy(ep->intermediate_anchor, "_DMI_", 5);
+  ep->intermediate_checksum = 0; // Will calculate later
+  ep->structure_table_length = structure_table_length;
+  ep->structure_table_address = 0; // Offset 0 in tables (after entry point)
+  ep->number_of_structures = nr_structs;
+  ep->smbios_bcd_revision = 0x24; // SMBIOS 2.4
+
+  // Calculate checksums
+  ep->intermediate_checksum = smbios_checksum((Bit8u *)ep + 0x10, 15);
+  ep->checksum = smbios_checksum(ep, ep->length);
+
+  // Calculate total size
+  Bit32u total_size = sizeof(SMBIOSEntryPoint) + structure_table_length;
+
+  // Expose SMBIOS tables via fw_cfg (entry point + structures concatenated)
+  add_file("etc/smbios/smbios-tables", tables, total_size, false);
+
+  BX_INFO(("SMBIOS tables generated: %u bytes (%u structures, max size=%u)",
+           total_size, nr_structs, max_struct_size));
+  BX_INFO(("  Entry Point: %u bytes", (Bit32u)sizeof(SMBIOSEntryPoint)));
+  BX_INFO(("  Structure Table: %u bytes", structure_table_length));
+  BX_INFO(("  Memory: %u MB (%u devices)", memsize_mb, nr_mem_devs));
 }
 
 // Generate E820 memory map and add to fw_cfg
