@@ -950,6 +950,23 @@ void bx_fwcfg_c::generate_bootorder()
 
   BX_INFO(("Boot order configured: %u bytes", bootorder_len));
   BX_INFO(("  Primary boot device: /pci@i0cf8/ide@1,1/drive@0/disk@0"));
+
+  // Add boot configuration files
+  // etc/boot-fail-wait: Time in seconds to wait after boot failure
+  // Set to 5 seconds so OVMF will timeout and show error instead of hanging
+  const char *boot_fail_wait = "5";
+  Bit32u boot_fail_wait_len = strlen(boot_fail_wait) + 1; // Include null terminator
+  Bit8u *boot_fail_wait_data = new Bit8u[boot_fail_wait_len];
+  memcpy(boot_fail_wait_data, boot_fail_wait, boot_fail_wait_len);
+  add_file("etc/boot-fail-wait", boot_fail_wait_data, boot_fail_wait_len, false);
+
+  // etc/show-boot-menu: 0 = don't show menu, just boot
+  Bit8u *show_boot_menu = new Bit8u[2];
+  show_boot_menu[0] = '0';
+  show_boot_menu[1] = '\0';
+  add_file("etc/show-boot-menu", show_boot_menu, 2, false);
+
+  BX_INFO(("Boot configuration: boot-fail-wait=5s, show-boot-menu=0"));
 }
 
 // Generate E820 memory map and add to fw_cfg

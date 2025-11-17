@@ -1,0 +1,25 @@
+Standard fw_cfg files provided by QEMU for OVMF:
+
+Core Files (we have these):
+✓ bootorder - Boot device order
+✓ etc/e820 - E820 memory map  
+✓ etc/acpi/rsdp - ACPI RSDP table
+✓ etc/acpi/tables - ACPI tables blob
+✓ etc/smbios/smbios-tables - SMBIOS tables
+
+Missing Files (QEMU provides, we don't):
+✗ etc/boot-fail-wait - Time to wait after boot failure (seconds)
+✗ etc/show-boot-menu - Whether to show boot menu (0 or 1)
+✗ opt/ovmf/PcdResizeXterm - Terminal resize
+✗ etc/system-states - System power states (S3, S4, S5)
+
+Optional but potentially important:
+- genroms/kvmvapic.bin - VAPIC ROM
+- etc/table-loader - ACPI table loader commands
+- etc/tpm/log - TPM event log
+
+Key missing: etc/boot-fail-wait
+This tells OVMF how long to wait when no boot device is found.
+Without this, OVMF might wait indefinitely in silence!
+
+Let's add boot-fail-wait and show-boot-menu.
