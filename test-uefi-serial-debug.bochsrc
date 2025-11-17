@@ -7,6 +7,7 @@ pci: enabled=1, chipset=i440fx
 display_library: x
 vga: extension=cirrus
 log: bochs-debug.log
+debugger_log: bochs-debugger.log
 debug: action=report
 info: action=report
 error: action=report

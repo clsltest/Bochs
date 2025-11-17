@@ -483,11 +483,11 @@ void bx_pci_ide_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_le
       case 0x18: case 0x19: case 0x1A: case 0x1B:  // BAR2 (0x170)
       case 0x1C: case 0x1D: case 0x1E: case 0x1F:  // BAR3 (0x374)
         // Ignore writes - legacy BARs are hardcoded
-        BX_INFO(("PIIX3 PCI IDE: Ignoring write to read-only BAR register 0x%02x (value=0x%02x)", addr, value8));
+        BX_DEBUG(("PIIX3 PCI IDE: Ignoring write to read-only BAR register 0x%02x (value=0x%02x)", addr, value8));
         break;
       default:
         BX_PIDE_THIS pci_conf[addr] = value8;
-        BX_INFO(("PIIX3 PCI IDE write register 0x%02x value 0x%02x", addr, value8));
+        BX_DEBUG(("PIIX3 PCI IDE write register 0x%02x value 0x%02x", addr, value8));
     }
   }
 }
