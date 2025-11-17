@@ -9,6 +9,9 @@ vga: extension=cirrus
 
 com1: enabled=1, mode=file, dev=ovmf-debug.log
 
+# Debug logging for PCI IDE investigation
+debug: action=report, pci=debug, pci_ide=debug, hd=debug
+
 ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
 ata1: enabled=1, ioaddr1=0x170, ioaddr2=0x370, irq=15
 
