@@ -8,6 +8,12 @@ This document outlines a comprehensive plan to add UEFI firmware support to the 
 
 **Parent Repository**: https://github.com/bochs-emu/Bochs
 
+**Related GitHub Issues**:
+- [#560](https://github.com/bochs-emu/Bochs/issues/560) - **ACPI is faulty when booting UEFI** (Open) ⚠️ CRITICAL
+- [#265](https://github.com/bochs-emu/Bochs/issues/265) - Add TPM 1.2, 2.0 emulation, UEFI with Secure Boot (Open)
+- [#471](https://github.com/bochs-emu/Bochs/issues/471) - UEFI boot (Closed - Fixed)
+- [#555](https://github.com/bochs-emu/Bochs/issues/555) - Panic on CET setting dirty flag (Closed)
+
 ---
 
 ## Table of Contents
@@ -775,10 +781,63 @@ if (port == 0xE9) {
 - OSDev.org QEMU fw_cfg: https://wiki.osdev.org/QEMU_fw_cfg
 - OSDev.org Forum - Bochs UEFI thread: https://forum.osdev.org/viewtopic.php?t=33440
 
-### Related Issues
-- Bochs Mailing List: https://sourceforge.net/p/bochs/mailman/bochs-developers/
-- GitHub Issues: https://github.com/bochs-emu/Bochs/issues
-  - *To be populated after issue search*
+### Related GitHub Issues
+
+#### Open Issues
+
+**[Issue #560](https://github.com/bochs-emu/Bochs/issues/560) - "ACPI is faulty when booting UEFI"** ⚠️ **CRITICAL**
+- **Status**: Open
+- **Author**: fysnet
+- **Created**: June 18, 2025
+- **Label**: bios
+- **Problem**: ACPI table enumeration fails when booting UEFI firmware on Bochs
+  - QEMU: Successfully enumerates 6 ACPI tables (FACP, APIC, HPET, MCFG, WAET, BGRT)
+  - Bochs: Only enumerates 2 tables (NULL pointer + BGRT)
+  - XSDT length: 52 bytes (Bochs) vs 84 bytes (QEMU)
+- **Root Cause**: OVMF debug output shows `OnRootBridgesConnected: InstallAcpiTables: Unsupported`
+- **Developer Note** (vruppert): "Qemu generates ACPI data at startup and copies it to BIOS memory. Bochs has no such capability yet and Bochs BIOS does this job in its init code."
+- **Impact**: This is THE blocking issue for UEFI support - directly validates our implementation plan's Phase 2 (ACPI Table Generation)
+
+**[Issue #265](https://github.com/bochs-emu/Bochs/issues/265) - "Add TPM 1.2, 2.0 emulation, UEFI with Secure Boot emulation"**
+- **Status**: Open (Feature Request)
+- **Author**: youself64github
+- **Created**: February 9, 2024
+- **Labels**: bios, enhancement request
+- **Request**: TPM 1.2/2.0 and UEFI with Secure Boot support for Windows 11 compatibility
+- **Key Findings**:
+  - DrChat confirmed: "Bochs actually already effectively supports UEFI" after bumping `BIOSROMSZ` parameter
+  - OVMF firmware loads successfully
+  - **Blocker**: OVMF no longer embeds ACPI tables internally - defers to QEMU via pseudo firmware configuration devices
+  - Windows bootloaders specifically require MADT (Multiple APIC Description Table)
+- **Impact**: Confirms OVMF can load but needs fw_cfg device and ACPI table generation
+
+#### Closed Issues
+
+**[Issue #471](https://github.com/bochs-emu/Bochs/issues/471) - "UEFI boot"**
+- **Status**: Closed (Fixed)
+- **Author**: fysnet
+- **Created**: February 1, 2025
+- **Problem**: UEFI ISO hanging during boot when ata1 (secondary ATA controller) was disabled
+- **Root Cause**: OVMF sends Execute Device Diagnostic (0x90) command to ata1 and hangs if status register is not 0x00
+- **Resolution**: Modified Bochs PCI IDE code to automatically activate both ATA channels when PCI IDE controller is present (matching QEMU behavior)
+- **Impact**: Already fixed - no action needed
+
+**[Issue #555](https://github.com/bochs-emu/Bochs/issues/555) - "Panic on CET setting the dirty flag"**
+- **Status**: Closed
+- **Author**: fysnet
+- **Created**: June 3, 2025
+- **Label**: cpu
+- **Context**: CPU functionality issue during UEFI testing (not directly UEFI-related)
+- **Impact**: No direct impact on UEFI implementation
+
+#### Search Results for Other Keywords
+
+- **fw_cfg**: No results found (confirms fw_cfg device doesn't exist in Bochs)
+- **EDK2**: No dedicated issues
+- **Q35**: No dedicated issues
+
+### Mailing Lists
+- Bochs Developer Mailing List: https://sourceforge.net/p/bochs/mailman/bochs-developers/
 
 ---
 
@@ -869,10 +928,11 @@ build -a X64 -t GCC5 -p OvmfPkg/OvmfPkgX64.dsc
 
 ## Document Version
 
-- **Version**: 1.0
+- **Version**: 1.1
 - **Date**: 2025-11-17
 - **Author**: Claude Code (AI Research Assistant)
-- **Status**: Draft - Pending GitHub Issue Search Results
+- **Status**: Complete - Ready for Implementation
+- **Last Updated**: 2025-11-17 (Added GitHub issues analysis)
 
 ---
 
@@ -881,17 +941,26 @@ build -a X64 -t GCC5 -p OvmfPkg/OvmfPkgX64.dsc
 1. ✅ Complete research on Bochs architecture
 2. ✅ Complete research on OVMF requirements
 3. ✅ Complete research on QEMU implementation
-4. ⏳ **PENDING**: Search GitHub issues in bochs-emu/Bochs repository for:
-   - "UEFI"
-   - "OVMF"
-   - "EDK2"
-   - "EFI"
-   - "fw_cfg"
-   - "Q35"
-5. ⏳ Update this document with findings from issue search
-6. ⏳ Review and refine implementation plan
-7. ⏳ Get stakeholder approval
-8. ⏳ Begin Phase 1 implementation
+4. ✅ Search GitHub issues in bochs-emu/Bochs repository
+   - Found: 2 open issues (#560, #265), 2 closed issues (#471, #555)
+   - **Key Finding**: Issue #560 confirms ACPI table generation is THE critical blocker
+   - **Key Finding**: Issue #265 confirms OVMF loads but needs fw_cfg + ACPI tables
+   - **Key Finding**: No fw_cfg, EDK2, or Q35 issues exist (confirms these are not yet implemented)
+5. ✅ Update this document with findings from issue search
+6. ⏳ Review and refine implementation plan based on findings
+7. ⏳ **READY**: Begin Phase 1 implementation (fw_cfg device + memory layout)
+8. ⏳ Address Issue #560 during Phase 2 (ACPI table generation)
+
+### Key Validation from GitHub Issues
+
+The issue search **validates our implementation plan**:
+
+✅ **Issue #560** confirms Phase 2 (ACPI Table Generation) is critical - OVMF cannot install ACPI tables
+✅ **Issue #265** confirms OVMF can load with BIOSROMSZ changes but needs fw_cfg device
+✅ **No fw_cfg issues** confirms we're building this from scratch (Phase 1)
+✅ **Issue #471** shows PCI IDE compatibility is already fixed
+
+**Conclusion**: Our 16-week, 5-phase implementation plan directly addresses all known issues. Phase 1 and Phase 2 will resolve the two blocking issues preventing UEFI boot.
 
 ---
 
