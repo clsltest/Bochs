@@ -134,6 +134,9 @@ void bx_fwcfg_c::init(void)
   // Generate ACPI tables
   generate_acpi_tables();
 
+  // Generate ACPI table-loader (for OVMF)
+  generate_acpi_loader();
+
   // Generate SMBIOS tables
   generate_smbios_tables();
 
@@ -606,6 +609,82 @@ void bx_fwcfg_c::generate_acpi_tables()
   BX_INFO(("  FACS @ 0x%x (%u bytes)", facs_offset, facs_size));
   BX_INFO(("  DSDT @ 0x%x (%u bytes)", dsdt_offset, dsdt_size));
   BX_INFO(("  MADT @ 0x%x (%u bytes, %u CPUs)", madt_offset, madt_size, s.nb_cpus));
+}
+
+// ==================================================================
+// ACPI Table Loader Generation (etc/table-loader)
+// ==================================================================
+
+// Generate ACPI table-loader commands for OVMF
+// This creates the etc/table-loader file that tells OVMF how to:
+// - Allocate memory for ACPI tables
+// - Patch pointers between tables
+// - Calculate checksums
+void bx_fwcfg_c::generate_acpi_loader()
+{
+  BX_INFO(("Generating ACPI table-loader for OVMF"));
+
+  // Calculate number of commands needed:
+  // - 2 ALLOCATE commands (for etc/acpi/rsdp and etc/acpi/tables)
+  // - 1 ADD_POINTER command (RSDP -> RSDT)
+  // - 2 ADD_CHECKSUM commands (RSDP and all tables)
+  const int num_commands = 5;
+  const Bit32u loader_size = num_commands * sizeof(BiosLinkerLoaderEntry);
+
+  Bit8u *loader_data = new Bit8u[loader_size];
+  memset(loader_data, 0, loader_size);
+
+  BiosLinkerLoaderEntry *cmd = (BiosLinkerLoaderEntry *)loader_data;
+  int cmd_idx = 0;
+
+  // Command 1: ALLOCATE etc/acpi/tables in high memory with 4K alignment
+  BX_DEBUG(("Linker command %d: ALLOCATE etc/acpi/tables", cmd_idx));
+  cmd[cmd_idx].command = BIOS_LINKER_LOADER_COMMAND_ALLOCATE;
+  strncpy(cmd[cmd_idx].alloc.file, "etc/acpi/tables", BIOS_LINKER_LOADER_FILESZ - 1);
+  cmd[cmd_idx].alloc.align = 4096;  // 4K alignment for ACPI tables
+  cmd[cmd_idx].alloc.zone = BIOS_LINKER_LOADER_ALLOC_ZONE_HIGH;
+  cmd_idx++;
+
+  // Command 2: ADD_CHECKSUM for all tables in etc/acpi/tables
+  // Note: Individual table checksums are already calculated in generate_acpi_tables()
+  // This command is for the overall tables blob if needed
+  BX_DEBUG(("Linker command %d: ADD_CHECKSUM etc/acpi/tables (skip - checksums pre-calculated)", cmd_idx));
+  // Skip this - checksums already done
+
+  // Command 3: ALLOCATE etc/acpi/rsdp in FSEG (0xF segment for legacy compatibility)
+  BX_DEBUG(("Linker command %d: ALLOCATE etc/acpi/rsdp", cmd_idx));
+  cmd[cmd_idx].command = BIOS_LINKER_LOADER_COMMAND_ALLOCATE;
+  strncpy(cmd[cmd_idx].alloc.file, "etc/acpi/rsdp", BIOS_LINKER_LOADER_FILESZ - 1);
+  cmd[cmd_idx].alloc.align = 16;  // 16-byte alignment for RSDP
+  cmd[cmd_idx].alloc.zone = BIOS_LINKER_LOADER_ALLOC_ZONE_FSEG;
+  cmd_idx++;
+
+  // Command 4: ADD_POINTER from RSDP to RSDT
+  // The RSDP contains rsdt_physical_address field at offset 16
+  // This needs to point to the RSDT table in etc/acpi/tables
+  BX_DEBUG(("Linker command %d: ADD_POINTER RSDP->RSDT", cmd_idx));
+  cmd[cmd_idx].command = BIOS_LINKER_LOADER_COMMAND_ADD_POINTER;
+  strncpy(cmd[cmd_idx].pointer.dest_file, "etc/acpi/rsdp", BIOS_LINKER_LOADER_FILESZ - 1);
+  strncpy(cmd[cmd_idx].pointer.src_file, "etc/acpi/tables", BIOS_LINKER_LOADER_FILESZ - 1);
+  cmd[cmd_idx].pointer.offset = 16;  // Offset of rsdt_physical_address in RSDP
+  cmd[cmd_idx].pointer.size = 4;     // 32-bit pointer
+  cmd_idx++;
+
+  // Command 5: ADD_CHECKSUM for RSDP (first 20 bytes)
+  BX_DEBUG(("Linker command %d: ADD_CHECKSUM RSDP", cmd_idx));
+  cmd[cmd_idx].command = BIOS_LINKER_LOADER_COMMAND_ADD_CHECKSUM;
+  strncpy(cmd[cmd_idx].cksum.file, "etc/acpi/rsdp", BIOS_LINKER_LOADER_FILESZ - 1);
+  cmd[cmd_idx].cksum.offset = 8;   // Offset of checksum field in RSDP
+  cmd[cmd_idx].cksum.start = 0;    // Start of checksummed region
+  cmd[cmd_idx].cksum.length = 20;  // ACPI 1.0 RSDP is 20 bytes
+  cmd_idx++;
+
+  BX_INFO(("Generated %d table-loader commands (%u bytes)", cmd_idx, loader_size));
+
+  // Expose the loader via fw_cfg
+  add_file("etc/table-loader", loader_data, loader_size, false);
+
+  BX_INFO(("ACPI table-loader ready for OVMF"));
 }
 
 // ==================================================================
