@@ -104,11 +104,12 @@ void bx_pci_ide_c::init(void)
 
   // initialize readonly registers
   if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I430FX) {
-    init_pci_conf(0x8086, 0x1230, 0x00, 0x010180, 0x00, 0);
+    init_pci_conf(0x8086, 0x1230, 0x00, 0x010180, 0x00, BX_PCI_INTA);
   } else if (BX_PIDE_THIS s.chipset == BX_PCI_CHIPSET_I440BX) {
-    init_pci_conf(0x8086, 0x7111, 0x00, 0x010180, 0x00, 0);
+    init_pci_conf(0x8086, 0x7111, 0x00, 0x010180, 0x00, BX_PCI_INTA);
   } else {
-    init_pci_conf(0x8086, 0x7010, 0x00, 0x010180, 0x00, 0);
+    // PIIX3 IDE controller - must have interrupt pin for UEFI/OVMF detection
+    init_pci_conf(0x8086, 0x7010, 0x00, 0x010180, 0x00, BX_PCI_INTA);
   }
   BX_PIDE_THIS init_bar_io(4, 16, read_handler, write_handler, &bmdma_iomask[0]);
 
@@ -135,6 +136,33 @@ void bx_pci_ide_c::reset(unsigned type)
     BX_PIDE_THIS pci_conf[0x43] = 0x80;
   }
   BX_PIDE_THIS pci_conf[0x44] = 0x00;
+
+  // Set legacy IDE I/O port BARs (required for UEFI/OVMF PCI enumeration)
+  // OVMF needs these BARs to discover the IDE controller's I/O ports
+  // BAR0: Primary Command Block (0x1F0-0x1F7)
+  BX_PIDE_THIS pci_conf[0x10] = 0xF1;  // 0x1F0 | 0x01 (I/O space)
+  BX_PIDE_THIS pci_conf[0x11] = 0x01;
+  BX_PIDE_THIS pci_conf[0x12] = 0x00;
+  BX_PIDE_THIS pci_conf[0x13] = 0x00;
+
+  // BAR1: Primary Control Block (0x3F4-0x3F7)
+  BX_PIDE_THIS pci_conf[0x14] = 0xF5;  // 0x3F4 | 0x01 (I/O space)
+  BX_PIDE_THIS pci_conf[0x15] = 0x03;
+  BX_PIDE_THIS pci_conf[0x16] = 0x00;
+  BX_PIDE_THIS pci_conf[0x17] = 0x00;
+
+  // BAR2: Secondary Command Block (0x170-0x177)
+  BX_PIDE_THIS pci_conf[0x18] = 0x71;  // 0x170 | 0x01 (I/O space)
+  BX_PIDE_THIS pci_conf[0x19] = 0x01;
+  BX_PIDE_THIS pci_conf[0x1A] = 0x00;
+  BX_PIDE_THIS pci_conf[0x1B] = 0x00;
+
+  // BAR3: Secondary Control Block (0x374-0x377)
+  BX_PIDE_THIS pci_conf[0x1C] = 0x75;  // 0x374 | 0x01 (I/O space)
+  BX_PIDE_THIS pci_conf[0x1D] = 0x03;
+  BX_PIDE_THIS pci_conf[0x1E] = 0x00;
+  BX_PIDE_THIS pci_conf[0x1F] = 0x00;
+
   for (unsigned i=0; i<2; i++) {
     BX_PIDE_THIS s.bmdma[i].cmd_ssbm = 0;
     BX_PIDE_THIS s.bmdma[i].cmd_rwcon = 0;
@@ -432,8 +460,9 @@ void bx_pci_ide_c::write(Bit32u address, Bit32u value, unsigned io_len)
 // pci configuration space write callback handler
 void bx_pci_ide_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_len)
 {
-  if (((address >= 0x10) && (address < 0x20)) ||
-      ((address > 0x23) && (address < 0x40)))
+  // Allow BAR0-BAR3 writes for UEFI/OVMF PCI enumeration
+  // Only block config registers 0x24-0x3F (was also blocking BAR0-BAR3)
+  if ((address > 0x23) && (address < 0x40))
     return;
 
   BX_DEBUG_PCI_WRITE(address, value, io_len);
