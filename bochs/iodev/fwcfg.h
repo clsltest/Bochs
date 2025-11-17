@@ -378,6 +378,52 @@ struct SMBIOSType127 {
     SMBIOSStructureHeader header;
 } GCC_ATTRIBUTE((packed));
 
+// ==================================================================
+// BIOS Linker/Loader Structures (for etc/table-loader)
+// ==================================================================
+
+#define BIOS_LINKER_LOADER_FILESZ 56
+
+// Linker/loader command types
+#define BIOS_LINKER_LOADER_COMMAND_ALLOCATE     0x1
+#define BIOS_LINKER_LOADER_COMMAND_ADD_POINTER  0x2
+#define BIOS_LINKER_LOADER_COMMAND_ADD_CHECKSUM 0x3
+
+// Allocation zone types
+#define BIOS_LINKER_LOADER_ALLOC_ZONE_HIGH 0x1  // High memory
+#define BIOS_LINKER_LOADER_ALLOC_ZONE_FSEG 0x2  // F-segment (0xF0000-0xFFFFF)
+
+// Linker/loader command entry (128 bytes total)
+struct BiosLinkerLoaderEntry {
+    Bit32u command;  // Command type
+    union {
+        // ALLOCATE command - allocate memory for a blob
+        struct {
+            char file[BIOS_LINKER_LOADER_FILESZ];  // Filename to allocate
+            Bit32u align;                           // Alignment (power of 2)
+            Bit8u zone;                            // Allocation zone (HIGH or FSEG)
+        } alloc;
+
+        // ADD_POINTER command - patch pointer from one blob to another
+        struct {
+            char dest_file[BIOS_LINKER_LOADER_FILESZ];  // Destination file
+            char src_file[BIOS_LINKER_LOADER_FILESZ];   // Source file (target)
+            Bit32u offset;                               // Offset in dest_file to patch
+            Bit8u size;                                 // Pointer size (1, 2, 4, or 8 bytes)
+        } pointer;
+
+        // ADD_CHECKSUM command - calculate and store checksum
+        struct {
+            char file[BIOS_LINKER_LOADER_FILESZ];  // File to checksum
+            Bit32u offset;                          // Where to store checksum
+            Bit32u start;                           // Start of checksummed region
+            Bit32u length;                          // Length of checksummed region
+        } cksum;
+
+        Bit8u pad[124];  // Padding to ensure 128-byte total size
+    };
+} GCC_ATTRIBUTE((packed));
+
 // File directory entry (64 bytes)
 struct FWCfgFile {
     Bit32u size;          // File size (big-endian)
@@ -450,6 +496,7 @@ private:
     void generate_acpi_tables();
     Bit8u acpi_checksum(void *data, Bit32u length);
     void acpi_build_table_header(ACPITableHeader *h, const char *sig, Bit32u len, Bit8u rev);
+    void generate_acpi_loader();
     void generate_smbios_tables();
     Bit8u smbios_checksum(void *data, Bit32u length);
     void generate_bootorder();

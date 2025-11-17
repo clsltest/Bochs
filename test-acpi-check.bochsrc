@@ -1,0 +1,13 @@
+# Alpine Linux ISO with serial console to check ACPI
+memory: guest=512, host=512
+romimage: file=bochs/bios/OVMF_CODE_SERIAL.fd
+vgaromimage: file=bochs/bios/VGABIOS-lgpl-latest-cirrus.bin
+cpu: count=1, ips=50000000, reset_on_triple_fault=1, model=corei7_sandy_bridge_2600k
+pci: enabled=1, chipset=i440fx
+display_library: nogui
+vga: extension=cirrus
+log: acpi-check.log
+com1: enabled=1, mode=file, dev=acpi-check-serial.log
+ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
+ata0-master: type=cdrom, path=alpine-virt.iso, status=inserted
+boot: cdrom
