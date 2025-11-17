@@ -168,3 +168,5 @@ alpine-serial.log
 bochs-alpine-boot.log
 bochs-alpine-debugger.log
 windows10-eval*.iso
+test-acpi-verify.sh
+acpi-verify*.log
