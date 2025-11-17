@@ -136,6 +136,9 @@ void bx_fwcfg_c::init(void)
   // Generate SMBIOS tables
   generate_smbios_tables();
 
+  // Generate bootorder
+  generate_bootorder();
+
   BX_INFO(("fw_cfg initialized: RAM=%llu MB, CPUs=%u/%u",
            (unsigned long long)(s.ram_size / (1024*1024)), s.nb_cpus, s.max_cpus));
 }
@@ -912,6 +915,41 @@ void bx_fwcfg_c::generate_smbios_tables()
   BX_INFO(("  Entry Point: %u bytes", (Bit32u)sizeof(SMBIOSEntryPoint)));
   BX_INFO(("  Structure Table: %u bytes", structure_table_length));
   BX_INFO(("  Memory: %u MB (%u devices)", memsize_mb, nr_mem_devs));
+}
+
+// ==================================================================
+// Boot Order Generation for UEFI/OVMF
+// ==================================================================
+
+// Generate boot order configuration
+// This tells OVMF which devices to boot from and in what order
+// Uses OpenFirmware device path notation (same as QEMU)
+void bx_fwcfg_c::generate_bootorder()
+{
+  BX_INFO(("Generating boot order for UEFI/OVMF"));
+
+  // Build bootorder string (newline-separated OpenFirmware device paths)
+  // For IDE disk on ata0-master (PIIX3 IDE at PCI 0:1.1):
+  //   /pci@i0cf8/ide@1,1/drive@0/disk@0
+  //
+  // Format breakdown:
+  //   pci@i0cf8    - PCI bus (i0cf8 is the PCI config I/O port)
+  //   ide@1,1      - IDE controller at PCI device 1, function 1 (PIIX3)
+  //   drive@0      - Drive 0 (ata0-master)
+  //   disk@0       - Disk 0 (the actual disk, not CD-ROM)
+
+  const char *bootorder_str = "/pci@i0cf8/ide@1,1/drive@0/disk@0\n";
+  Bit32u bootorder_len = strlen(bootorder_str);
+
+  // Allocate and copy bootorder string
+  Bit8u *bootorder = new Bit8u[bootorder_len];
+  memcpy(bootorder, bootorder_str, bootorder_len);
+
+  // Expose bootorder via fw_cfg
+  add_file("bootorder", bootorder, bootorder_len, false);
+
+  BX_INFO(("Boot order configured: %u bytes", bootorder_len));
+  BX_INFO(("  Primary boot device: /pci@i0cf8/ide@1,1/drive@0/disk@0"));
 }
 
 // Generate E820 memory map and add to fw_cfg

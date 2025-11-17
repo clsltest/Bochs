@@ -452,6 +452,7 @@ private:
     void acpi_build_table_header(ACPITableHeader *h, const char *sig, Bit32u len, Bit8u rev);
     void generate_smbios_tables();
     Bit8u smbios_checksum(void *data, Bit32u length);
+    void generate_bootorder();
 };
 
 #endif // BX_SUPPORT_PCI
