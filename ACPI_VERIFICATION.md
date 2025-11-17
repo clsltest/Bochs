@@ -6,37 +6,41 @@ Successfully verified that ACPI tables are properly provided to OVMF firmware an
 
 ## Verification Method
 
-Added temporary debug logging to Bochs fw_cfg device (bochs/iodev/fwcfg.cc) to track when ACPI-related files are accessed:
+Added debug logging to Bochs fw_cfg device (bochs/iodev/fwcfg.cc) to track when ACPI-related files are accessed:
 
 ```c
-// Log when ACPI files are selected
+// Log when ACPI files are selected (BX_DEBUG - only shown when debug: action=report)
 if (strstr(filename, "acpi") || strstr(filename, "table-loader")) {
-    BX_INFO(("==== OS ACCESSING ACPI FILE: '%s' (selector=0x%04x, size=%u) ====",
-             filename, selector, s.files[file_idx].size));
+    BX_DEBUG(("OS accessing ACPI file: '%s' (selector=0x%04x, size=%u)",
+              filename, selector, s.files[file_idx].size));
 }
 
-// Log when ACPI files are fully read
+// Log when ACPI files are fully read (BX_DEBUG - only shown when debug: action=report)
 if ((strstr(filename, "acpi") || strstr(filename, "table-loader")) &&
     offset == s.files[file_idx].size - 1) {
-    BX_INFO(("==== OS FINISHED READING ACPI FILE: '%s' (%u bytes) ====",
-             filename, s.files[file_idx].size));
+    BX_DEBUG(("OS finished reading ACPI file: '%s' (%u bytes)",
+              filename, s.files[file_idx].size));
 }
 ```
+
+These messages use `BX_DEBUG` so they only appear when `debug: action=report` is set in the configuration file, keeping production logs clean while allowing detailed verification during development.
 
 ## Test Results
 
 ### ACPI File Accesses Detected
 
-From bochs-acpi-verify.log:
+When running with `debug: action=report` in the configuration:
 
 ```
-00950320996i[FWCFG ] ==== OS ACCESSING ACPI FILE: 'etc/table-loader' (selector=0x0023, size=640) ====
-00950321695i[FWCFG ] ==== OS FINISHED READING ACPI FILE: 'etc/table-loader' (640 bytes) ====
-00950674118i[FWCFG ] ==== OS ACCESSING ACPI FILE: 'etc/acpi/tables' (selector=0x0022, size=3970) ====
-00950678165i[FWCFG ] ==== OS FINISHED READING ACPI FILE: 'etc/acpi/tables' (3970 bytes) ====
-00950890102i[FWCFG ] ==== OS ACCESSING ACPI FILE: 'etc/acpi/rsdp' (selector=0x0021, size=36) ====
-00950890212i[FWCFG ] ==== OS FINISHED READING ACPI FILE: 'etc/acpi/rsdp' (36 bytes) ====
+00950320996d[FWCFG ] OS accessing ACPI file: 'etc/table-loader' (selector=0x0023, size=640)
+00950321695d[FWCFG ] OS finished reading ACPI file: 'etc/table-loader' (640 bytes)
+00950674118d[FWCFG ] OS accessing ACPI file: 'etc/acpi/tables' (selector=0x0022, size=3970)
+00950678165d[FWCFG ] OS finished reading ACPI file: 'etc/acpi/tables' (3970 bytes)
+00950890102d[FWCFG ] OS accessing ACPI file: 'etc/acpi/rsdp' (selector=0x0021, size=36)
+00950890212d[FWCFG ] OS finished reading ACPI file: 'etc/acpi/rsdp' (36 bytes)
 ```
+
+Note: These debug messages (marked with 'd') only appear when `debug: action=report`. With the default `debug: action=ignore`, these messages are suppressed, keeping production logs clean.
 
 ### OVMF Firmware Messages
 
