@@ -160,3 +160,10 @@ bochs-run.log
 bochs-stdout.log
 bochs-debugger.log
 bochs-run-output.log
+
+# Alpine Linux test files
+alpine-virt.iso
+alpine-linux.img
+alpine-serial.log
+bochs-alpine-boot.log
+bochs-alpine-debugger.log
