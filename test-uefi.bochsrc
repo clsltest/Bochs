@@ -4,9 +4,9 @@
 # Memory: 256MB (OVMF requires minimum 64MB)
 memory: guest=256, host=256
 
-# ROM image: OVMF Code (3.5MB, needs 4MB ROM space)
-# Load at 0xFFC00000 (4GB - 4MB) for 4MB ROM
-romimage: file=bochs/bios/OVMF_CODE.fd, address=0xffc00000
+# ROM image: OVMF Code (3.5MB)
+# Auto-calculate address to align end at 4GB boundary (includes reset vector)
+romimage: file=bochs/bios/OVMF_CODE.fd
 
 # VGA BIOS (Cirrus)
 vgaromimage: file=bochs/bios/VGABIOS-lgpl-latest-cirrus.bin
