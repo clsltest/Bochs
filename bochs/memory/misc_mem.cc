@@ -354,9 +354,11 @@ void BX_MEM_C::load_ROM(const char *path, bx_phy_address romaddress, Bit8u type)
   }
   if (type == 0) {
     if (romaddress > 0) {
-      if ((romaddress + size) != 0x100000 && (romaddress + size)) {
+      // Allow ROM to end at either 1MB (legacy BIOS) or 4GB (UEFI firmware)
+      bx_phy_address rom_end = romaddress + size;
+      if (rom_end != 0x100000 && rom_end != BX_CONST64(0x100000000) && rom_end != 0) {
         close(fd);
-        BX_PANIC(("ROM: System BIOS must end at 0xfffff"));
+        BX_PANIC(("ROM: System BIOS must end at 0xfffff (legacy) or 0xffffffff (UEFI)"));
         return;
       }
     } else {

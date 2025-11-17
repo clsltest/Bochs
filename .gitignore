@@ -141,3 +141,9 @@ bochs-msvc-src.zip
 /sfsite/tmp
 /sfsite/xcf
 /sfsite/.glimpse*
+
+# UEFI/OVMF firmware files
+bochs/bios/OVMF_*.fd
+bochs/bios/shell.efi
+ovmf/
+ovmf-debug.log
