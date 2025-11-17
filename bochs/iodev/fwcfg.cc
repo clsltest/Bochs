@@ -32,6 +32,9 @@
 #include "fwcfg.h"
 #include <vector>
 
+// Include precompiled DSDT (AML bytecode)
+#include "../bios/acpi-dsdt.hex"
+
 #define LOG_THIS theFwCfg->
 
 bx_fwcfg_c *theFwCfg = NULL;
@@ -126,6 +129,9 @@ void bx_fwcfg_c::init(void)
 
   // Generate E820 memory map
   generate_e820_map();
+
+  // Generate ACPI tables
+  generate_acpi_tables();
 
   BX_INFO(("fw_cfg initialized: RAM=%llu MB, CPUs=%u/%u",
            (unsigned long long)(s.ram_size / (1024*1024)), s.nb_cpus, s.max_cpus));
@@ -379,6 +385,205 @@ void bx_fwcfg_c::cleanup_file_directory()
     s.file_dir_data = NULL;
     s.file_dir_size = 0;
   }
+}
+
+// ==================================================================
+// ACPI Table Generation
+// ==================================================================
+
+// Calculate ACPI table checksum
+// Returns the value that when added to the sum of all bytes makes the total 0
+Bit8u bx_fwcfg_c::acpi_checksum(void *data, Bit32u length)
+{
+  Bit8u *bytes = (Bit8u *)data;
+  Bit32u sum = 0;
+  for (Bit32u i = 0; i < length; i++) {
+    sum += bytes[i];
+  }
+  return (Bit8u)((-sum) & 0xFF);
+}
+
+// Build standard ACPI table header
+void bx_fwcfg_c::acpi_build_table_header(ACPITableHeader *h, const char *sig, Bit32u len, Bit8u rev)
+{
+  memcpy(h->signature, sig, 4);
+  h->length = len;  // Little-endian (x86)
+  h->revision = rev;
+  memcpy(h->oem_id, "BOCHS ", 6);
+  memcpy(h->oem_table_id, "BXPC", 4);
+  memcpy(h->oem_table_id + 4, sig, 4);
+  h->oem_revision = 1;
+  memcpy(h->asl_compiler_id, "BXPC", 4);
+  h->asl_compiler_revision = 1;
+  h->checksum = 0;  // Will be calculated after table is complete
+}
+
+// Generate ACPI tables and expose via fw_cfg
+void bx_fwcfg_c::generate_acpi_tables()
+{
+  BX_INFO(("Generating ACPI tables for UEFI/OVMF"));
+
+  // Calculate total size needed for all tables
+  Bit32u rsdp_size = sizeof(ACPIRSDP);
+  Bit32u rsdt_size = sizeof(ACPIRSTD);
+  Bit32u fadt_size = sizeof(ACPIFADT);
+  Bit32u facs_size = sizeof(ACPIFACS);
+  Bit32u dsdt_size = sizeof(AmlCode);
+  Bit32u madt_size = sizeof(ACPIMADT) +
+                     s.nb_cpus * sizeof(MADTProcessorAPIC) +
+                     sizeof(MADTIOAPIC) +
+                     sizeof(MADTIRQOverride);
+
+  // Align FACS to 64-byte boundary
+  Bit32u base_offset = 0;
+  Bit32u rsdt_offset = base_offset;
+  Bit32u fadt_offset = rsdt_offset + rsdt_size;
+  Bit32u facs_offset = (fadt_offset + fadt_size + 63) & ~63;  // 64-byte aligned
+  Bit32u dsdt_offset = facs_offset + facs_size;
+  Bit32u madt_offset = (dsdt_offset + dsdt_size + 7) & ~7;  // 8-byte aligned
+  Bit32u tables_size = madt_offset + madt_size;
+
+  BX_DEBUG(("ACPI table offsets: RSDT=0x%x FADT=0x%x FACS=0x%x DSDT=0x%x MADT=0x%x total=%u",
+           rsdt_offset, fadt_offset, facs_offset, dsdt_offset, madt_offset, tables_size));
+
+  // Allocate buffer for all tables (except RSDP which goes in separate file)
+  Bit8u *tables = new Bit8u[tables_size];
+  memset(tables, 0, tables_size);
+
+  // Build RSDT (Root System Description Table)
+  ACPIRSTD *rsdt = (ACPIRSTD *)(tables + rsdt_offset);
+  acpi_build_table_header(&rsdt->header, "RSDT", rsdt_size, 1);
+  rsdt->entry[0] = fadt_offset;  // Pointer to FADT
+  rsdt->entry[1] = madt_offset;  // Pointer to MADT
+  rsdt->entry[2] = 0;            // Unused
+  rsdt->entry[3] = 0;            // Unused
+  rsdt->header.checksum = acpi_checksum(rsdt, rsdt_size);
+
+  // Build FADT (Fixed ACPI Description Table)
+  ACPIFADT *fadt = (ACPIFADT *)(tables + fadt_offset);
+  acpi_build_table_header(&fadt->header, "FACP", fadt_size, 1);
+  fadt->firmware_ctrl = facs_offset;   // Pointer to FACS
+  fadt->dsdt = dsdt_offset;             // Pointer to DSDT
+  fadt->model = 1;                      // PC/AT compatible
+  fadt->reserved1 = 0;
+  fadt->sci_int = 9;                    // SCI interrupt (IRQ 9)
+  fadt->smi_cmd = 0xB2;                 // SMI command port
+  fadt->acpi_enable = 0xF1;             // Value to enable ACPI
+  fadt->acpi_disable = 0xF0;            // Value to disable ACPI
+  fadt->S4bios_req = 0;
+  fadt->reserved2 = 0;
+  fadt->pm1a_evt_blk = 0x0600;          // PM1a event block (Bochs PIIX3)
+  fadt->pm1b_evt_blk = 0;               // No PM1b
+  fadt->pm1a_cnt_blk = 0x0604;          // PM1a control block
+  fadt->pm1b_cnt_blk = 0;               // No PM1b
+  fadt->pm2_cnt_blk = 0;                // No PM2
+  fadt->pm_tmr_blk = 0x0608;            // PM timer block
+  fadt->gpe0_blk = 0x0620;              // GPE0 block
+  fadt->gpe1_blk = 0;                   // No GPE1
+  fadt->pm1_evt_len = 4;                // 4 bytes
+  fadt->pm1_cnt_len = 2;                // 2 bytes
+  fadt->pm2_cnt_len = 0;
+  fadt->pm_tmr_len = 4;                 // 4 bytes
+  fadt->gpe0_blk_len = 4;               // 4 bytes
+  fadt->gpe1_blk_len = 0;
+  fadt->gpe1_base = 0;
+  fadt->reserved3 = 0;
+  fadt->plvl2_lat = 0xFFFF;             // C2 not supported
+  fadt->plvl3_lat = 0xFFFF;             // C3 not supported
+  fadt->flush_size = 0;
+  fadt->flush_stride = 0;
+  fadt->duty_offset = 0;
+  fadt->duty_width = 0;
+  fadt->day_alrm = 0;
+  fadt->mon_alrm = 0;
+  fadt->century = 0;
+  fadt->reserved4[0] = 0;
+  fadt->reserved4[1] = 0;
+  fadt->reserved4[2] = 0;
+  // Flags: WBINVD + PROC_C1 + PWR_BUTTON + SLP_BUTTON + FIX_RTC
+  fadt->flags = (1 << 0) | (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6);
+  fadt->header.checksum = acpi_checksum(fadt, fadt_size);
+
+  // Build FACS (Firmware ACPI Control Structure)
+  ACPIFACS *facs = (ACPIFACS *)(tables + facs_offset);
+  memcpy(facs->signature, "FACS", 4);
+  facs->length = facs_size;
+  facs->hardware_signature = 0;
+  facs->firmware_waking_vector = 0;
+  facs->global_lock = 0;
+  facs->flags = 0;
+  memset(facs->reserved, 0, sizeof(facs->reserved));
+  // FACS does not have a checksum field
+
+  // Copy DSDT (precompiled AML bytecode)
+  Bit8u *dsdt = tables + dsdt_offset;
+  memcpy(dsdt, AmlCode, dsdt_size);
+
+  // Build MADT (Multiple APIC Description Table)
+  ACPIMADT *madt = (ACPIMADT *)(tables + madt_offset);
+  acpi_build_table_header(&madt->header, "APIC", madt_size, 1);
+  madt->local_apic_address = ACPI_LAPIC_ADDRESS;
+  madt->flags = 1;  // PC-AT compatible (dual 8259 PICs)
+
+  // Add Processor Local APIC entries (one per CPU)
+  Bit8u *madt_ptr = (Bit8u *)(madt + 1);
+  for (Bit16u i = 0; i < s.nb_cpus; i++) {
+    MADTProcessorAPIC *apic = (MADTProcessorAPIC *)madt_ptr;
+    apic->type = ACPI_MADT_TYPE_LOCAL_APIC;
+    apic->length = sizeof(MADTProcessorAPIC);
+    apic->processor_id = i;
+    apic->apic_id = i;
+    apic->flags = 1;  // Processor enabled
+    madt_ptr += sizeof(MADTProcessorAPIC);
+  }
+
+  // Add I/O APIC entry
+  MADTIOAPIC *io_apic = (MADTIOAPIC *)madt_ptr;
+  io_apic->type = ACPI_MADT_TYPE_IO_APIC;
+  io_apic->length = sizeof(MADTIOAPIC);
+  io_apic->io_apic_id = s.nb_cpus;
+  io_apic->reserved = 0;
+  io_apic->io_apic_address = ACPI_IOAPIC_ADDRESS;
+  io_apic->global_irq_base = 0;
+  madt_ptr += sizeof(MADTIOAPIC);
+
+  // Add Interrupt Source Override (IRQ 0 -> GSI 2)
+  MADTIRQOverride *irq_override = (MADTIRQOverride *)madt_ptr;
+  irq_override->type = ACPI_MADT_TYPE_IRQ_OVERRIDE;
+  irq_override->length = sizeof(MADTIRQOverride);
+  irq_override->bus = 0;       // ISA bus
+  irq_override->source = 0;    // IRQ 0
+  irq_override->gsi = 2;       // GSI 2
+  irq_override->flags = 0;     // Default flags
+
+  madt->header.checksum = acpi_checksum(madt, madt_size);
+
+  // Build RSDP (Root System Description Pointer)
+  // This goes in a separate file
+  Bit8u *rsdp_data = new Bit8u[rsdp_size];
+  ACPIRSDP *rsdp = (ACPIRSDP *)rsdp_data;
+  memset(rsdp, 0, rsdp_size);
+  memcpy(rsdp->signature, "RSD PTR ", 8);  // Note the space at the end
+  memcpy(rsdp->oem_id, "BOCHS ", 6);
+  rsdp->revision = 0;  // ACPI 1.0
+  rsdp->rsdt_physical_address = rsdt_offset;  // Offset in tables blob
+  rsdp->length = 0;
+  rsdp->xsdt_physical_address = 0;
+  rsdp->extended_checksum = 0;
+  memset(rsdp->reserved, 0, sizeof(rsdp->reserved));
+  rsdp->checksum = acpi_checksum(rsdp, 20);  // Checksum first 20 bytes only
+
+  // Expose ACPI tables via fw_cfg
+  add_file("etc/acpi/rsdp", rsdp_data, rsdp_size, false);
+  add_file("etc/acpi/tables", tables, tables_size, false);
+
+  BX_INFO(("ACPI tables generated: RSDP=%u bytes, tables=%u bytes (RSDT+FADT+FACS+DSDT+MADT)",
+           rsdp_size, tables_size));
+  BX_INFO(("  RSDT @ 0x%x (%u bytes)", rsdt_offset, rsdt_size));
+  BX_INFO(("  FADT @ 0x%x (%u bytes)", fadt_offset, fadt_size));
+  BX_INFO(("  FACS @ 0x%x (%u bytes)", facs_offset, facs_size));
+  BX_INFO(("  DSDT @ 0x%x (%u bytes)", dsdt_offset, dsdt_size));
+  BX_INFO(("  MADT @ 0x%x (%u bytes, %u CPUs)", madt_offset, madt_size, s.nb_cpus));
 }
 
 // Generate E820 memory map and add to fw_cfg
