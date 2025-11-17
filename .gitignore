@@ -167,3 +167,4 @@ alpine-linux.img
 alpine-serial.log
 bochs-alpine-boot.log
 bochs-alpine-debugger.log
+windows10-eval*.iso
