@@ -8,8 +8,11 @@ memory: guest=256, host=256
 # Load at 0xFFC00000 (4GB - 4MB) for 4MB ROM
 romimage: file=bochs/bios/OVMF_CODE.fd, address=0xffc00000
 
+# VGA BIOS (Cirrus)
+vgaromimage: file=bochs/bios/VGABIOS-lgpl-latest-cirrus.bin
+
 # CPU configuration
-cpu: count=1, ips=50000000, reset_on_triple_fault=1, model=corei7_ivy_bridge_3770K
+cpu: count=1, ips=50000000, reset_on_triple_fault=1, model=corei7_sandy_bridge_2600k
 
 # PCI chipset (i440FX - supported by OVMF)
 pci: enabled=1, chipset=i440fx
