@@ -95,8 +95,9 @@ void bx_fwcfg_c::init(void)
   s.signature[2] = 'M';
   s.signature[3] = 'U';
 
-  // Interface version (3 = supports files)
-  s.interface_version = 0x00000003;
+  // Interface version (1 = supports files, 3 = files + DMA)
+  // Note: DMA is not implemented, so we only advertise file support
+  s.interface_version = 0x00000001;
 
   // Get RAM size from memory subsystem
   s.ram_size = (Bit64u)SIM->get_param_num(BXPN_MEM_SIZE)->get() * BX_CONST64(1024) * BX_CONST64(1024);
@@ -261,10 +262,19 @@ Bit8u bx_fwcfg_c::read_byte()
       case FW_CFG_FILE_DIR:
         // Generate file directory on demand
         if (s.file_dir_data == NULL) {
+          BX_INFO(("FW_CFG_FILE_DIR: Generating file directory on first read"));
           generate_file_directory();
+          BX_INFO(("FW_CFG_FILE_DIR: Generation complete, dir_size=%u", s.file_dir_size));
         }
         if (offset < s.file_dir_size) {
           value = s.file_dir_data[offset];
+          if (offset < 4) {
+            BX_DEBUG(("FW_CFG_FILE_DIR: read offset=%u value=0x%02x (file count byte %u)", offset, value, offset));
+          } else if (offset % 64 < 8 || (offset >= 4 && offset < 68)) {
+            BX_DEBUG(("FW_CFG_FILE_DIR: read offset=%u value=0x%02x", offset, value));
+          }
+        } else {
+          BX_DEBUG(("FW_CFG_FILE_DIR: read offset=%u >= dir_size=%u, returning 0xFF", offset, s.file_dir_size));
         }
         break;
 
@@ -380,7 +390,13 @@ void bx_fwcfg_c::generate_file_directory()
     strncpy((char *)&entry[8], file->name, 55);
   }
 
-  BX_DEBUG(("generated file directory: %u files, %u bytes", num_files, s.file_dir_size));
+  BX_INFO(("generated file directory: %u files, %u bytes", num_files, s.file_dir_size));
+
+  // Log details of each file for debugging
+  for (Bit32u i = 0; i < num_files; i++) {
+    FWCfgEntry *file = &s.files[i];
+    BX_INFO(("  File %u: selector=0x%04x size=%u name='%s'", i, file->selector, file->size, file->name));
+  }
 }
 
 // Clean up file directory cache
