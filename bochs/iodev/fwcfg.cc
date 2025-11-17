@@ -203,6 +203,18 @@ void bx_fwcfg_c::select_item(Bit16u selector)
 {
   s.cur_selector = selector;
   s.cur_offset = 0;
+
+  // Log ACPI-related file selections for verification
+  if (selector >= 0x0020) {
+    int file_idx = find_file_by_selector(selector);
+    if (file_idx >= 0) {
+      const char *filename = s.files[file_idx].name;
+      if (strstr(filename, "acpi") || strstr(filename, "table-loader")) {
+        BX_INFO(("==== OS ACCESSING ACPI FILE: '%s' (selector=0x%04x, size=%u) ====",
+                 filename, selector, s.files[file_idx].size));
+      }
+    }
+  }
 }
 
 // Read one byte from currently selected item
@@ -295,6 +307,14 @@ Bit8u bx_fwcfg_c::read_byte()
     if (file_idx >= 0) {
       if (offset < s.files[file_idx].size) {
         value = s.files[file_idx].data[offset];
+
+        // Log when ACPI files are fully read
+        const char *filename = s.files[file_idx].name;
+        if ((strstr(filename, "acpi") || strstr(filename, "table-loader")) &&
+            offset == s.files[file_idx].size - 1) {
+          BX_INFO(("==== OS FINISHED READING ACPI FILE: '%s' (%u bytes) ====",
+                   filename, s.files[file_idx].size));
+        }
       }
     } else {
       if (offset == 0) {
