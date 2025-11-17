@@ -460,8 +460,7 @@ void bx_pci_ide_c::write(Bit32u address, Bit32u value, unsigned io_len)
 // pci configuration space write callback handler
 void bx_pci_ide_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_len)
 {
-  // Allow BAR0-BAR3 writes for UEFI/OVMF PCI enumeration
-  // Only block config registers 0x24-0x3F (was also blocking BAR0-BAR3)
+  // Block config registers 0x24-0x3F
   if ((address > 0x23) && (address < 0x40))
     return;
 
@@ -469,16 +468,26 @@ void bx_pci_ide_c::pci_write_handler(Bit8u address, Bit32u value, unsigned io_le
   for (unsigned i=0; i<io_len; i++) {
 //  Bit8u oldval = BX_PIDE_THIS pci_conf[address+i];
     Bit8u value8 = (value >> (i*8)) & 0xFF;
-    switch (address+i) {
+    Bit8u addr = address + i;
+    switch (addr) {
       case 0x05:
       case 0x06:
         break;
       case 0x04:
-        BX_PIDE_THIS pci_conf[address+i] = value8 & 0x05;
+        BX_PIDE_THIS pci_conf[addr] = value8 & 0x05;
+        break;
+      // BAR0-BAR3 (0x10-0x1F): Read-only legacy IDE addresses
+      // PIIX3 IDE has fixed I/O ports, BARs cannot be relocated
+      case 0x10: case 0x11: case 0x12: case 0x13:  // BAR0 (0x1F0)
+      case 0x14: case 0x15: case 0x16: case 0x17:  // BAR1 (0x3F4)
+      case 0x18: case 0x19: case 0x1A: case 0x1B:  // BAR2 (0x170)
+      case 0x1C: case 0x1D: case 0x1E: case 0x1F:  // BAR3 (0x374)
+        // Ignore writes - legacy BARs are hardcoded
+        BX_DEBUG(("PIIX3 PCI IDE: Ignoring write to read-only BAR register 0x%02x", addr));
         break;
       default:
-        BX_PIDE_THIS pci_conf[address+i] = value8;
-        BX_DEBUG(("PIIX3 PCI IDE write register 0x%02x value 0x%02x", address+i,
+        BX_PIDE_THIS pci_conf[addr] = value8;
+        BX_DEBUG(("PIIX3 PCI IDE write register 0x%02x value 0x%02x", addr,
                   value8));
     }
   }
