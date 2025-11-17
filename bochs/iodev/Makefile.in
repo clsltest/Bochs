@@ -411,6 +411,24 @@ harddrv.lo: harddrv.@CPP_SUFFIX@ iodev.h ../bochs.h ../config.h ../osdep.h \
  ../extplugin.h ../param_names.h ../pc_system.h ../bx_debug/debug.h \
  ../config.h ../osdep.h ../memory/memory-bochs.h ../gui/siminterface.h \
  ../gui/gui.h harddrv.h hdimage/hdimage.h hdimage/cdrom.h
+fwcfg.o: fwcfg.@CPP_SUFFIX@ iodev.h ../bochs.h ../config.h ../osdep.h \
+ ../gui/paramtree.h ../logio.h \
+ ../misc/bswap.h ../plugin.h \
+ ../extplugin.h ../param_names.h ../pc_system.h ../bx_debug/debug.h \
+ ../config.h ../osdep.h ../memory/memory-bochs.h ../gui/siminterface.h \
+ ../gui/gui.h fwcfg.h
+hpet.o: hpet.@CPP_SUFFIX@ iodev.h ../bochs.h ../config.h ../osdep.h \
+ ../gui/paramtree.h ../logio.h \
+ ../misc/bswap.h ../plugin.h \
+ ../extplugin.h ../param_names.h ../pc_system.h ../bx_debug/debug.h \
+ ../config.h ../osdep.h ../memory/memory-bochs.h ../gui/siminterface.h \
+ ../gui/gui.h hpet.h
+fwcfg.lo: fwcfg.@CPP_SUFFIX@ iodev.h ../bochs.h ../config.h ../osdep.h \
+ ../gui/paramtree.h ../logio.h \
+ ../misc/bswap.h ../plugin.h \
+ ../extplugin.h ../param_names.h ../pc_system.h ../bx_debug/debug.h \
+ ../config.h ../osdep.h ../memory/memory-bochs.h ../gui/siminterface.h \
+ ../gui/gui.h fwcfg.h
 hpet.lo: hpet.@CPP_SUFFIX@ iodev.h ../bochs.h ../config.h ../osdep.h \
  ../gui/paramtree.h ../logio.h \
  ../misc/bswap.h ../plugin.h \
