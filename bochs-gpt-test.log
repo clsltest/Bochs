@@ -1,0 +1,15 @@
+00000000000i[      ] BXSHARE not set. using compile time default '/usr/local/share/bochs'
+00000000000i[      ] reading configuration from test-uefi-gpt-nogui.bochsrc
+00000000000p[      ] >>PANIC<< test-uefi-gpt-nogui.bochsrc:7: display library 'nogui' not available
+00000000000e[SIM   ] notify called, but no bxevent_callback function is registered
+00000000000e[SIM   ] notify called, but no bxevent_callback function is registered
+========================================================================
+Bochs is exiting with the following message:
+[      ] test-uefi-gpt-nogui.bochsrc:7: display library 'nogui' not available
+========================================================================
+00000000000i[SIM   ] quit_sim called with exit code 1
+========================================================================
+                     Bochs x86 Emulator 3.0.devel
+             Built from GitHub snapshot after release 3.0
+                  Compiled on Nov 17 2025 at 06:10:08
+========================================================================

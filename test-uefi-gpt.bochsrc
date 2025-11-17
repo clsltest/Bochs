@@ -1,0 +1,23 @@
+# Test with GPT disk
+memory: guest=256, host=256
+romimage: file=bochs/bios/OVMF_CODE.fd
+vgaromimage: file=bochs/bios/VGABIOS-lgpl-latest-cirrus.bin
+cpu: count=1, ips=50000000, reset_on_triple_fault=1, model=corei7_sandy_bridge_2600k
+pci: enabled=1, chipset=i440fx
+display_library: x
+vga: extension=cirrus
+
+com1: enabled=1, mode=file, dev=ovmf-debug.log
+
+# Debug logging for PCI IDE investigation
+debug: action=report, pci=debug, pci_ide=debug, hd=debug
+
+ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
+ata1: enabled=1, ioaddr1=0x170, ioaddr2=0x370, irq=15
+
+# Use the GPT disk instead of FAT12
+ata0-master: type=disk, path=uefi-gpt-disk.img, mode=flat
+
+boot: disk
+mouse: enabled=0
+keyboard: type=mf, serial_delay=250
