@@ -147,3 +147,10 @@ bochs/bios/OVMF_*.fd
 bochs/bios/shell.efi
 ovmf/
 ovmf-debug.log
+
+# OVMF/UEFI testing files
+bochs-debug.log
+ovmf-debugcon.log
+ovmf-serial-debug.log
+qemu-ovmf-debug.log
+*.img.lock
