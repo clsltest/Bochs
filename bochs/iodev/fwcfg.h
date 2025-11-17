@@ -62,6 +62,20 @@
 #define FW_CFG_PORT_DATA        0x0511  // Data register (8-bit read/write)
 #define FW_CFG_PORT_DMA         0x0514  // DMA address (32-bit write) - not implemented yet
 
+// E820 memory map entry types
+#define E820_RAM        1  // Usable RAM
+#define E820_RESERVED   2  // Reserved
+#define E820_ACPI       3  // ACPI Reclaimable
+#define E820_NVS        4  // ACPI NVS
+#define E820_UNUSABLE   5  // Unusable
+
+// E820 memory map entry (20 bytes)
+struct E820Entry {
+    Bit64u address;  // Base address
+    Bit64u length;   // Length in bytes
+    Bit32u type;     // Memory type (E820_RAM, E820_RESERVED, etc.)
+} BX_CPP_PACKED;
+
 // File directory entry (64 bytes)
 struct FWCfgFile {
     Bit32u size;          // File size (big-endian)
@@ -130,6 +144,7 @@ private:
     void generate_file_directory();
     int find_file_by_selector(Bit16u selector);
     void cleanup_file_directory();
+    void generate_e820_map();
 };
 
 #endif // BX_SUPPORT_PCI

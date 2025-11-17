@@ -124,6 +124,9 @@ void bx_fwcfg_c::init(void)
   s.file_dir_data = NULL;
   s.file_dir_size = 0;
 
+  // Generate E820 memory map
+  generate_e820_map();
+
   BX_INFO(("fw_cfg initialized: RAM=%llu MB, CPUs=%u/%u",
            (unsigned long long)(s.ram_size / (1024*1024)), s.nb_cpus, s.max_cpus));
 }
@@ -376,6 +379,92 @@ void bx_fwcfg_c::cleanup_file_directory()
     s.file_dir_data = NULL;
     s.file_dir_size = 0;
   }
+}
+
+// Generate E820 memory map and add to fw_cfg
+void bx_fwcfg_c::generate_e820_map()
+{
+  std::vector<E820Entry> entries;
+  E820Entry entry;
+
+  // Get memory size in bytes
+  Bit64u ram_size_bytes = s.ram_size;
+  Bit64u ram_size_mb = ram_size_bytes / (1024 * 1024);
+
+  BX_INFO(("Generating E820 memory map for %llu MB RAM", (unsigned long long)ram_size_mb));
+
+  // Entry 1: Low memory (0 - 640KB)
+  // This is always usable RAM
+  entry.address = 0x00000000;
+  entry.length = 0x000A0000;  // 640KB
+  entry.type = E820_RAM;
+  entries.push_back(entry);
+  BX_DEBUG(("E820: 0x%08llx-0x%08llx (%llu KB) - Usable RAM",
+           (unsigned long long)entry.address,
+           (unsigned long long)(entry.address + entry.length - 1),
+           (unsigned long long)(entry.length / 1024)));
+
+  // Entry 2: VGA/BIOS area (640KB - 1MB)
+  // Reserved for video memory and option ROMs
+  entry.address = 0x000A0000;
+  entry.length = 0x00060000;  // 384KB (640KB to 1MB)
+  entry.type = E820_RESERVED;
+  entries.push_back(entry);
+  BX_DEBUG(("E820: 0x%08llx-0x%08llx (%llu KB) - Reserved (VGA/BIOS)",
+           (unsigned long long)entry.address,
+           (unsigned long long)(entry.address + entry.length - 1),
+           (unsigned long long)(entry.length / 1024)));
+
+  // Entry 3: High memory (1MB to end of RAM or 3.5GB, whichever is lower)
+  // For systems with >3.5GB RAM, we need to split around the UEFI ROM area
+  Bit64u high_mem_start = 0x00100000;  // 1MB
+  Bit64u high_mem_end = ram_size_bytes;
+  Bit64u uefi_rom_start = 0xFFC00000;  // 4GB - 4MB
+
+  if (high_mem_end > uefi_rom_start) {
+    // RAM extends into UEFI ROM area, split it
+    entry.address = high_mem_start;
+    entry.length = uefi_rom_start - high_mem_start;
+    entry.type = E820_RAM;
+    entries.push_back(entry);
+    BX_DEBUG(("E820: 0x%08llx-0x%08llx (%llu MB) - Usable RAM (below UEFI)",
+             (unsigned long long)entry.address,
+             (unsigned long long)(entry.address + entry.length - 1),
+             (unsigned long long)(entry.length / (1024*1024))));
+  } else {
+    // RAM doesn't reach UEFI ROM area, single entry
+    entry.address = high_mem_start;
+    entry.length = high_mem_end - high_mem_start;
+    entry.type = E820_RAM;
+    entries.push_back(entry);
+    BX_DEBUG(("E820: 0x%08llx-0x%08llx (%llu MB) - Usable RAM",
+             (unsigned long long)entry.address,
+             (unsigned long long)(entry.address + entry.length - 1),
+             (unsigned long long)(entry.length / (1024*1024))));
+  }
+
+  // Entry 4: UEFI ROM area (0xFFC00000 - 0xFFFFFFFF = 4MB)
+  // This is where OVMF firmware is loaded
+  entry.address = 0xFFC00000;
+  entry.length = 0x00400000;  // 4MB
+  entry.type = E820_RESERVED;
+  entries.push_back(entry);
+  BX_DEBUG(("E820: 0x%08llx-0x%08llx (%llu MB) - Reserved (UEFI ROM)",
+           (unsigned long long)entry.address,
+           (unsigned long long)(entry.address + entry.length - 1),
+           (unsigned long long)(entry.length / (1024*1024))));
+
+  // Allocate memory for E820 data
+  Bit32u e820_size = entries.size() * sizeof(E820Entry);
+  Bit8u *e820_data = new Bit8u[e820_size];
+
+  // Copy entries to data buffer (already in little-endian format on x86)
+  memcpy(e820_data, entries.data(), e820_size);
+
+  // Add E820 map as a file "etc/e820"
+  add_file("etc/e820", e820_data, e820_size, false);
+
+  BX_INFO(("E820 memory map: %u entries, %u bytes", (unsigned)entries.size(), e820_size));
 }
 
 #endif // BX_SUPPORT_PCI
