@@ -141,3 +141,35 @@ bochs-msvc-src.zip
 /sfsite/tmp
 /sfsite/xcf
 /sfsite/.glimpse*
+
+# UEFI/OVMF firmware files
+bochs/bios/OVMF_*.fd
+bochs/bios/shell.efi
+ovmf/
+ovmf-debug.log
+
+# OVMF/UEFI testing files
+bochs-debug.log
+ovmf-debugcon.log
+ovmf-serial-debug.log
+qemu-ovmf-debug.log
+*.img.lock
+
+# Additional test logs
+bochs-run.log
+bochs-stdout.log
+bochs-debugger.log
+bochs-run-output.log
+
+# Alpine Linux test files
+alpine-virt.iso
+alpine-linux.img
+alpine-serial.log
+bochs-alpine-boot.log
+bochs-alpine-debugger.log
+windows10-eval*.iso
+test-acpi-verify.sh
+acpi-verify*.log
+bochs-acpi-test-output.log
+bochs-acpi-verify.log
+alpine-acpi-serial.log

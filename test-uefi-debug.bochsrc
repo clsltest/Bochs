@@ -1,0 +1,20 @@
+# OVMF DEBUG Test Configuration
+memory: guest=256, host=256
+romimage: file=bochs/bios/OVMF_CODE_DEBUG.fd
+vgaromimage: file=bochs/bios/VGABIOS-lgpl-latest-cirrus.bin
+cpu: count=1, ips=50000000, reset_on_triple_fault=1, model=corei7_sandy_bridge_2600k
+pci: enabled=1, chipset=i440fx
+display_library: x
+vga: extension=cirrus
+
+# Serial port for OVMF DEBUG output - THIS IS THE KEY!
+com1: enabled=1, mode=file, dev=ovmf-debug.log
+
+ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
+ata1: enabled=1, ioaddr1=0x170, ioaddr2=0x370, irq=15
+
+ata0-master: type=disk, path=uefi-gpt-disk.img, mode=flat
+
+boot: disk
+mouse: enabled=0
+keyboard: type=mf, serial_delay=250

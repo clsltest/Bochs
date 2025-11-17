@@ -75,6 +75,7 @@ extern "C" {
 #define BX_PLUGIN_IODEBUG   "iodebug"
 #define BX_PLUGIN_IOAPIC    "ioapic"
 #define BX_PLUGIN_HPET      "hpet"
+#define BX_PLUGIN_FWCFG     "fwcfg"
 #define BX_PLUGIN_VOODOO    "voodoo"
 
 
@@ -442,6 +443,7 @@ PLUGIN_ENTRY_FOR_MODULE(acpi);
 PLUGIN_ENTRY_FOR_MODULE(iodebug);
 PLUGIN_ENTRY_FOR_MODULE(ioapic);
 PLUGIN_ENTRY_FOR_MODULE(hpet);
+PLUGIN_ENTRY_FOR_MODULE(fwcfg);
 PLUGIN_ENTRY_FOR_MODULE(voodoo);
 // config interface plugins
 PLUGIN_ENTRY_FOR_MODULE(textconfig);

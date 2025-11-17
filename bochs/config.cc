@@ -2836,9 +2836,9 @@ static int parse_line_formatted(const char *context, int num_params, char *param
         SIM->get_param_string(BXPN_ROM_PATH)->set(&params[i][5]);
       } else  if (!strncmp(params[i], "address=", 8)) {
         if ((params[i][8] == '0') && (params[i][9] == 'x'))
-          SIM->get_param_num(BXPN_ROM_ADDRESS)->set(strtoul(&params[i][8], NULL, 16));
+          SIM->get_param_num(BXPN_ROM_ADDRESS)->set(strtoull(&params[i][8], NULL, 16));
         else
-          SIM->get_param_num(BXPN_ROM_ADDRESS)->set(strtoul(&params[i][8], NULL, 10));
+          SIM->get_param_num(BXPN_ROM_ADDRESS)->set(strtoull(&params[i][8], NULL, 10));
       } else  if (!strncmp(params[i], "flash_data=", 11)) {
         SIM->get_param_string(BXPN_ROM_FLASH_DATA)->set(&params[i][11]);
       } else  if (!strncmp(params[i], "options=", 8)) {
