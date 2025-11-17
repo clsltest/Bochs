@@ -159,3 +159,17 @@ qemu-ovmf-debug.log
 bochs-run.log
 bochs-stdout.log
 bochs-debugger.log
+bochs-run-output.log
+
+# Alpine Linux test files
+alpine-virt.iso
+alpine-linux.img
+alpine-serial.log
+bochs-alpine-boot.log
+bochs-alpine-debugger.log
+windows10-eval*.iso
+test-acpi-verify.sh
+acpi-verify*.log
+bochs-acpi-test-output.log
+bochs-acpi-verify.log
+alpine-acpi-serial.log
