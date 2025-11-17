@@ -159,3 +159,4 @@ qemu-ovmf-debug.log
 bochs-run.log
 bochs-stdout.log
 bochs-debugger.log
+bochs-run-output.log
