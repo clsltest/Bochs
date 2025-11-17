@@ -170,3 +170,4 @@ bochs-alpine-debugger.log
 windows10-eval*.iso
 test-acpi-verify.sh
 acpi-verify*.log
+bochs-acpi-test-output.log
