@@ -154,3 +154,8 @@ ovmf-debugcon.log
 ovmf-serial-debug.log
 qemu-ovmf-debug.log
 *.img.lock
+
+# Additional test logs
+bochs-run.log
+bochs-stdout.log
+bochs-debugger.log
